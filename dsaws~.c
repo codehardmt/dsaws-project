@@ -21,6 +21,7 @@ typedef struct _dsaws {
     float si[1024]; //storing every si in each voice
     float phase[1024]; // storing every phase in each voice
     short w_connected[2]; //([]means how many inlets)
+    float detunep; // storing users' detune parameter
 } t_dsaws;
 
 
@@ -33,6 +34,7 @@ void dsaws_free(t_dsaws *x);
 void dsaws_assist(t_dsaws *x, void *b, long m, long a, char *s);
 void process_saw(t_dsaws* sptr, int index);
 void dsawsz_float(t_dsaws* x, double freq);
+void dsaws_float2(t_dsaws* x, double detune);
 void dsaws_dsp64(t_dsaws *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 void dsaws_perform64(t_dsaws *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 
@@ -115,7 +117,7 @@ void ext_main(void *r)
 }
 
 
-void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
+void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // parameter -> takes argument // argv is an array of arguments
 {
     t_dsaws *x = (t_dsaws *)object_alloc(dsaws_class);
     
@@ -136,13 +138,16 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
         for(i = 0; i < 4; i++){ //1024
             x->phase[i] = -1;
         } // set the phase to -1 everytime
-        float frequency = atom_getfloat(argv);
-        if(argc >= 1){ // argument take in object as freq
+        
+        float frequency = 440.0;
+        float detune = 0.0;
+        if(argc >= 1){// argument take in object as freq
             
+            frequency = atom_getfloat(argv);//All atom_getfloat does is turn the pointer that gets passed to it into a float)
             if(frequency > 0)
             {
                 // x->si[i] = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
-                dsaws_detune(x, frequency, 0.05);
+                dsaws_detune(x, frequency, detune);
             }
             else
             {
@@ -154,11 +159,31 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
         {
             float defaultFreq = 440.0;
            // x->si[i] = 2.0 / calculateWL(sys_getsr(), defaultFreq);
-            dsaws_detune(x, frequency, 0.001);
-            
+            dsaws_detune(x, defaultFreq, detune);
+        
         }
     }
-    return (x);
+        float frequency = 440.0;
+        float detune = 0.0;
+         // (argv+1) pointer to the 2nd argument of the array
+        if(argc >= 2){
+            detune = atom_getfloat(argv+1);
+            
+            if(x->detunep > 0){
+                dsaws_detune(x, frequency, detune);
+            }
+            else
+            {
+                error("please enter detune parameter > 0.\n");
+                return;
+            }
+        }
+        else
+        {
+            float defaultdetunep = 0.0;
+            dsaws_detune(x, frequency, defaultdetunep);
+        }
+        return (x);
 }
 
 
@@ -198,17 +223,19 @@ void dsawsz_float(t_dsaws* x, double freq){
     
 }
 
-/*int dsawsz_integer(t_dsaws* x, int num){
-    if(num > 0 | num < 1024){
-        return num;
+//
+void dsaws_float2(t_dsaws* x, double detune){
+    if(detune > 0)
+    {
+        return detune;
     }
-    else{
+    else
+    {
         error("please enter a valid number > 0.\n");
     }
     
-    
 }
-*/
+
 
 
 
@@ -245,10 +272,10 @@ void dsaws_dsp64(t_dsaws *x, t_object *dsp64, short *count, double samplerate, l
 
 
 // this is the 64-bit perform method audio vectors
-void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam) //double **ins is a pointer to an array of pointers, where each pointer represents a signal inlet.
+void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam) //double **ins is a pointer to an array of pointers, where each pointer represents a signal inlet. // paramater->takes signal
 {
     t_double *inL = ins[0];        // we get audio for each inlet of the object from the **ins argument
-    t_double *inM = ins[1];
+    //t_double *inM = ins[1];
     
     t_double *outL = outs[0];    // we get audio for each outlet of the object from the **outs argument
     t_double *outR = outs[1];
@@ -259,7 +286,7 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
     long n = sampleframes;
     
     t_double inputL = *inL; // freq
-    t_double inputM = *inM; // detune parameter
+   // t_double inputM = *inM; // detune parameter
     
     
     for (int time=0; time < sampleframes; time++){ // how many samples user/maxmsp are going to take at a time
@@ -277,7 +304,7 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
             }
         }
         //SET THE DETUNE INLET IF CONNECTED//
-        if (x->w_connected[1]){
+       /* if (x->w_connected[1]){
            
             if(inputM > 0)
             {
@@ -289,6 +316,7 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
             }
         
         }
+        */
         
         inL++;
        
