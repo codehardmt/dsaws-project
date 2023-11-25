@@ -18,8 +18,8 @@
 // struct to represent the object's state
 typedef struct _dsaws {
     t_pxobject        ob;            // the object itself (t_pxobject in MSP instead of t_object)
-    float si;
-    float phase[1024];
+    float si[1024]; //storing every si in each voice
+    float phase[1024]; // storing every phase in each voice
     short w_connected[1];
 } t_dsaws;
 
@@ -60,6 +60,42 @@ double cpsoct(double oct)
     return pow(2.0, oct) * MIDC_OFFSET;
 }
 
+void process_saw(t_dsaws* x, int index){ // arguement is a pointer to struct, we want to change the "real" value stored in the memory address, int index is how many voices
+    
+    x->phase[index] = x->phase[index] + x->si[index]; //logically *s.phase (syntax thing) pointer to the real value, calculating each voice's different phase + different si
+    if (x->phase[index] >= 1.0){
+        x->phase[index] = -1.0;
+    }
+}
+
+void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling increment for add-up saw waves
+    
+    
+    base = octcps(base); // taking base frequency converted to e.g. 8.00
+    double base_detune = detune; // set the base_detune for increment later
+    
+    //calculating each freq of spacing-out detune when the saw becomes more, and further calculating the sampling increment
+    for(int i = 0; i < 1024; i++){
+        
+        if(i == 0){ // first initial value
+            x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base));
+        }
+        
+        else if((i + 1) % 2 == 0)// if it's odd num
+        {
+            x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base - detune));
+        }
+        
+        else // even num
+        {
+            x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base + detune));
+            
+        }
+        detune = detune + base_detune; // instead of adding the base num, add the base_detune num to make it equally wider.
+    }
+    
+}
+
 
 void ext_main(void *r)
 {
@@ -95,35 +131,35 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
         
         x->w_connected[0] = 0;
         
-        
+        int i;
+        for(i = 0; i < 1024; i++){
+            x->phase[i] = -1;
+        } // set the phase to -1 everytime
+        float frequency = atom_getfloat(argv);
         if(argc >= 1){ // argument take in object as freq
-            float frequency = atom_getfloat(argv);
+            
             if(frequency > 0)
             {
-                x->si = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
-            
+                x->si[i] = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
+                dsaws_detune(x, frequency, 0.001);
             }
-            else{
+            else
+            {
                 error("please enter frequency > 0.\n");
                 return;
-                
             }
         }
         else
         {
             float defaultFreq = 440.0;
-            x->si = 2.0 / calculateWL(sys_getsr(), defaultFreq);
+            x->si[i] = 2.0 / calculateWL(sys_getsr(), defaultFreq);
+            dsaws_detune(x, frequency, 0.001);
             
         }
-        
-        int i;
-        for(i = 0; i < 1024; i++){
-            x->phase[i] = -1;
-        }
     }
-    
     return (x);
 }
+
 
 
 // NOT CALLED!, we use dsp_free for a generic free function
@@ -171,43 +207,11 @@ void dsawsz_float(t_dsaws* x, double freq){
     
 }
 */
-void process_saw(t_dsaws* x, int index){ // arguement is a pointer to struct, we want to change the "real" value stored in the memory address
-    
-    x->phase[index] = x->phase[index] + x->si; //logically *s.phase (syntax thing) pointer to the real value
-    if (x->phase[index] >= 1.0){
-        x->phase[index] = -1.0;
-    }
-}
 
 
 
-void dsaws_detune(t_dsaws* x, double base, double detune){ // take midi num
-    
-    
-    base = octcps(base); // taking base frequency converted to e.g. 8.00
-    double base_detune = detune; // set the base_detune for increment later
-    
-    //calculating each freq of spacing-out detune when the saw becomes more, and further calculating the sampling increment
-    for(int i = 0; i < 4; i++){ //之後要改回1024
-        
-        if(i == 0){ // first initial value
-            x->si = 2.0 / calculateWL(sys_getsr(), cpsoct(base));
-        }
-        
-        else if((i + 1) % 2 == 0)// if it's odd num
-        {
-            x->si = 2.0 / calculateWL(sys_getsr(), cpsoct(base - detune));
-        }
-        
-        else // even num
-        {
-            x->si = 2.0 / calculateWL(sys_getsr(), cpsoct(base + detune));
-            
-        }
-        detune = detune + base_detune; // instead of adding the base num, add the base_detune num to make it equally wider.
-    }
-    
-}
+
+
 
 
 
@@ -241,20 +245,20 @@ void dsaws_dsp64(t_dsaws *x, t_object *dsp64, short *count, double samplerate, l
 void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam) //double **ins is a pointer to an array of pointers, where each pointer represents a signal inlet.
 {
     t_double *inL = ins[0];        // we get audio for each inlet of the object from the **ins argument
-   
+    
     t_double *outL = outs[0];    // we get audio for each outlet of the object from the **outs argument
     t_double *outR = outs[1];
-  
-  
-
-
+    
+    
+    
+    
     long n = sampleframes;
     
     
- 
- 
+    
+    
     for (int time=0; time < sampleframes; time++){ // how many samples user/maxmsp are going to take at a time
-            
+        
         if (x->w_connected[0]){
             t_double inputL = *inL; // freq
             if(inputL > 0)
@@ -265,21 +269,26 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
                 error("please enter frequency > 0.\n");
             }
         }
-            
+        
         inL++;
-            
+        float allsaws = 0;
         float sum = 0; // initiallized the sum in phase[index]'s data type
-        for (int index=0; index < 4; index++) //之後要改回1024
+        for (int index=0; index < 4; index++) //之後要改回1024 index: how many voices
         {
-            process_saw(x, index);
-            sum = sum + x->phase[index]; // adding all the saw waves
-            
+            if (x->w_connected[0]){
+                t_double inputL = *inL; // freq
+                process_saw(x, index);
+                allsaws = x->phase[index] + dsaws_detune(x, inputL, 0.001);
+                    
+                }
+                sum = sum + allsaws; // adding all the saw waves
+                
+            }
+            *outL++= sum / 4; // amplitude divided by the array phase[1024] /改回1024
+            *outR++= sum / 4;
         }
-        *outL++= sum / 4; // amplitude divided by the array phase[1024] /改回1024
-        *outR++= sum / 4;
     }
 }
-
 
 
    
