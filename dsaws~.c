@@ -75,7 +75,7 @@ void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling
     double base_detune = detune; // set the base_detune for increment later
     
     //calculating each freq of spacing-out detune when the saw becomes more, and further calculating the sampling increment
-    for(int i = 0; i < 1024; i++){
+    for(int i = 0; i < 4; i++){ //1024
         
         if(i == 0){ // first initial value
             x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base));
@@ -132,7 +132,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
         x->w_connected[0] = 0;
         
         int i;
-        for(i = 0; i < 1024; i++){
+        for(i = 0; i < 4; i++){ //1024
             x->phase[i] = -1;
         } // set the phase to -1 everytime
         float frequency = atom_getfloat(argv);
@@ -141,7 +141,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
             if(frequency > 0)
             {
                 // x->si[i] = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
-                dsaws_detune(x, frequency, 0.001);
+                dsaws_detune(x, frequency, 0.05);
             }
             else
             {
@@ -187,7 +187,9 @@ void dsaws_assist(t_dsaws *x, void *b, long m, long a, char *s) // when we move 
 // float function handle changing the floats that going in freq inlet into frequency
 void dsawsz_float(t_dsaws* x, double freq){
     if(freq > 0){
-        x->si = 2.0 / calculateWL(sys_getsr(), freq);
+        
+        dsaws_detune(x, freq, 0.05);
+        //x->si[] = 2.0 / calculateWL(sys_getsr(), freq);
     }
     else{
         error("please enter frequency > 0.\n");
@@ -275,20 +277,16 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
         float sum = 0; // initiallized the sum in phase[index]'s data type
         for (int index=0; index < 4; index++) //之後要改回1024 index: how many voices
         {
-            if (x->w_connected[0]){
-                t_double inputL = *inL; // freq
+            
                 process_saw(x, index);
-                allsaws = x->phase[index] + dsaws_detune(x, inputL, 0.001);
-                    
-                }
-                sum = sum + allsaws; // adding all the saw waves
+                sum = sum + x->phase[index]; // adding all the saw waves
                 
-            }
+        }
             *outL++= sum / 4; // amplitude divided by the array phase[1024] /改回1024
             *outR++= sum / 4;
         }
     }
-}
+
 
 
    
