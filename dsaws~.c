@@ -140,7 +140,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
             
             if(frequency > 0)
             {
-                x->si[i] = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
+                // x->si[i] = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
                 dsaws_detune(x, frequency, 0.001);
             }
             else
@@ -152,7 +152,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object
         else
         {
             float defaultFreq = 440.0;
-            x->si[i] = 2.0 / calculateWL(sys_getsr(), defaultFreq);
+           // x->si[i] = 2.0 / calculateWL(sys_getsr(), defaultFreq);
             dsaws_detune(x, frequency, 0.001);
             
         }
