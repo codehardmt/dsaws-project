@@ -22,6 +22,8 @@ typedef struct _dsaws {
     float phase[1024]; // storing every phase in each voice
     short w_connected[2]; //([]means how many inlets)
     float detunep; // storing users' detune parameter
+    float freqp; //storing users' detune parameter
+    float voicenump; //storing users' voices parameter
 } t_dsaws;
 
 
@@ -139,15 +141,15 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
             x->phase[i] = -1;
         } // set the phase to -1 everytime
         
-        float frequency = 440.0;
-        float detune = 0.0;
+        x->freqp = 440.0;
+        x->detunep = 0.0;
         if(argc >= 1){// argument take in object as freq
             
-            frequency = atom_getfloat(argv);//All atom_getfloat does is turn the pointer that gets passed to it into a float)
-            if(frequency > 0)
+            x->freqp = atom_getfloat(argv);//All atom_getfloat does is turn the pointer that gets passed to it into a float)
+            if(x->freqp > 0)
             {
                 // x->si[i] = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
-                dsaws_detune(x, frequency, detune);
+                dsaws_detune(x, x->freqp, x->detunep);
             }
             else
             {
@@ -159,18 +161,18 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
         {
             float defaultFreq = 440.0;
            // x->si[i] = 2.0 / calculateWL(sys_getsr(), defaultFreq);
-            dsaws_detune(x, defaultFreq, detune);
+            dsaws_detune(x, defaultFreq, x->detunep);
         
         }
     }
-        float frequency = 440.0;
-        float detune = 0.0;
+        
+        x->detunep = 0.0;
          // (argv+1) pointer to the 2nd argument of the array
-        if(argc >= 2){
-            detune = atom_getfloat(argv+1);
+        if(argc >= 2){ // argument take in object as detune
+            x->detunep = atom_getfloat(argv+1);
             
             if(x->detunep > 0){
-                dsaws_detune(x, frequency, detune);
+                dsaws_detune(x, x->freqp, x->detunep);
             }
             else
             {
@@ -181,7 +183,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
         else
         {
             float defaultdetunep = 0.0;
-            dsaws_detune(x, frequency, defaultdetunep);
+            dsaws_detune(x, x->freqp, defaultdetunep);
         }
         return (x);
 }
@@ -214,10 +216,10 @@ void dsaws_assist(t_dsaws *x, void *b, long m, long a, char *s) // when we move 
 void dsawsz_float(t_dsaws* x, double freq){
     if(freq > 0){
         
-        dsaws_detune(x, freq, 0.05); // calculating every voice's si
+        dsaws_detune(x, x->freqp, x->detunep); // calculating every voice's si
     }
     else{
-        error("please enter frequency > 0.\n");
+        error("please enter float frequency > 0.\n");
         
     }
     
@@ -227,7 +229,7 @@ void dsawsz_float(t_dsaws* x, double freq){
 void dsaws_float2(t_dsaws* x, double detune){
     if(detune > 0)
     {
-        return detune;
+        dsaws_detune(x, x->freqp, x->detunep);
     }
     else
     {
@@ -275,7 +277,7 @@ void dsaws_dsp64(t_dsaws *x, t_object *dsp64, short *count, double samplerate, l
 void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam) //double **ins is a pointer to an array of pointers, where each pointer represents a signal inlet. // paramater->takes signal
 {
     t_double *inL = ins[0];        // we get audio for each inlet of the object from the **ins argument
-    //t_double *inM = ins[1];
+    t_double *inM = ins[1];
     
     t_double *outL = outs[0];    // we get audio for each outlet of the object from the **outs argument
     t_double *outR = outs[1];
@@ -286,7 +288,7 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
     long n = sampleframes;
     
     t_double inputL = *inL; // freq
-   // t_double inputM = *inM; // detune parameter
+    t_double inputM = *inM; // detune parameter
     
     
     for (int time=0; time < sampleframes; time++){ // how many samples user/maxmsp are going to take at a time
@@ -304,11 +306,10 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
             }
         }
         //SET THE DETUNE INLET IF CONNECTED//
-       /* if (x->w_connected[1]){
-           
+        if (x->w_connected[1]){
             if(inputM > 0)
             {
-                dsaws_detune(x, inputL, inputM);
+                dsaws_float2(x, inputM);
             }
             else
             {
@@ -316,9 +317,10 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
             }
         
         }
-        */
+        
         
         inL++;
+        inM++;
        
         //ADD UP ALL THE SAW WAVES//
         float sum = 0; // initiallized the sum in phase[index]'s data type
