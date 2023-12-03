@@ -80,7 +80,7 @@ void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling
     double base_detune = detune; // set the base_detune for increment later
     
     //calculating each freq of spacing-out detune when the saw becomes more, and further calculating the different sampling increment
-    for(int i = 0; i < 50; i++){ //1024
+    for(int i = 0; i < 1024; i++){ //1024 is the highest num
         
         if(i == 0){ // first initial value
             x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base));
@@ -190,6 +190,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
             dsaws_detune(x, x->freqp, defaultdetunep);
         }
     
+        
         if(argc >= 3){ // if the third argument is entered
             x->voicenump = atom_getfloat(argv+2); // the users-entered 3rd argument will be voice num
         }
@@ -291,6 +292,7 @@ void dsaws_dsp64(t_dsaws *x, t_object *dsp64, short *count, double samplerate, l
 
     x->w_connected[0] = count[0];
     x->w_connected[1] = count[1];
+    x->w_connected[2] = count[2];
     
     //0 disconnected, 1 connected (inlet) decided by the users
    
