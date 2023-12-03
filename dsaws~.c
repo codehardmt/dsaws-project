@@ -20,7 +20,7 @@ typedef struct _dsaws {
     t_pxobject        ob;            // the object itself (t_pxobject in MSP instead of t_object)
     float si[1024]; //storing every si in each voice
     float phase[1024]; // storing every phase in each voice
-    short w_connected[2]; //([]means how many inlets)
+    short w_connected[3]; //([]means how many inlets)
     float detunep; // storing users' detune parameter
     float freqp; //storing users' detune parameter
     float voicenump; //storing users' voices parameter
@@ -127,7 +127,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
     t_dsaws *x = (t_dsaws *)object_alloc(dsaws_class);
     
     if (x) {
-        dsp_setup((t_pxobject *)x, 2);    // MSP inlets: arg is # of inlets and is REQUIRED!
+        dsp_setup((t_pxobject *)x, 3);    // MSP inlets: arg is # of inlets and is REQUIRED!
         // use 0 if you don't need inlets
         
         
@@ -138,9 +138,10 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
         
         x->w_connected[0] = 0;
         x->w_connected[1] = 1;
+        x->w_connected[2] = 2;
         
         int i;
-        for(i = 0; i < 50; i++){ //1024
+        for(i = 0; i < x->voicenump; i++){ //1024
             x->phase[i] = -1;
         } // set the phase to -1 everytime
         
@@ -188,6 +189,14 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
             float defaultdetunep = 0.0;
             dsaws_detune(x, x->freqp, defaultdetunep);
         }
+    
+        if(argc >= 3){ // if the third argument is entered
+            x->voicenump = atom_getfloat(argv+2); // the users-entered 3rd argument will be voice num
+        }
+        else{
+                x->voicenump = 1; //if user didn't type anything, default will be 1(to make sound, one saw wave)
+            }
+        
         return (x);
 }
 
@@ -259,7 +268,6 @@ void dsawsz_float(t_dsaws* x, double freq, double detune) // ???new way to take 
     else
         object_error((t_object *)x, "please enter valid float num to freq and detune num.");
 }
-
 
 
 
@@ -348,15 +356,15 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
        
         //ADD UP ALL THE SAW WAVES//
         float sum = 0; // initiallized the sum in phase[index]'s data type
-        for (int index=0; index < 50; index++) //之後要改回1024 index: how many voices
+        for (int index=0; index < x->voicenump; index++) //index: how many voices
         {
             
                 process_saw(x, index);
                 sum = sum + x->phase[index]; // adding all the saw waves
                 
         }
-            *outL++= sum / 50; // amplitude divided by the array phase[1024] /改回1024
-            *outR++= sum / 50;
+            *outL++= sum / x->voicenump; // amplitude divided by the num of the voice to reduce amp.
+            *outR++= sum / x->voicenump;
         }
     }
 
