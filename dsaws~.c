@@ -35,8 +35,9 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv);
 void dsaws_free(t_dsaws *x);
 void dsaws_assist(t_dsaws *x, void *b, long m, long a, char *s);
 void process_saw(t_dsaws* sptr, int index);
-void dsawsz_float(t_dsaws* x, double freq);
-void dsaws_float2(t_dsaws* x, double detune);
+void dsaws_changefreq(t_dsaws* x, double freq);
+void dsaws_changedetune(t_dsaws* x, double detune);
+void dsawsz_float(t_dsaws* x, double freq, double detune);
 void dsaws_dsp64(t_dsaws *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 void dsaws_perform64(t_dsaws *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 
@@ -79,7 +80,7 @@ void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling
     double base_detune = detune; // set the base_detune for increment later
     
     //calculating each freq of spacing-out detune when the saw becomes more, and further calculating the different sampling increment
-    for(int i = 0; i < 4; i++){ //1024
+    for(int i = 0; i < 50; i++){ //1024
         
         if(i == 0){ // first initial value
             x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base));
@@ -111,6 +112,8 @@ void ext_main(void *r)
 
     class_addmethod(c, (method)dsaws_dsp64,     "dsp64",    A_CANT, 0);
     class_addmethod(c, (method)dsaws_assist,    "assist",    A_CANT, 0);
+    class_addmethod(c, (method)dsaws_changefreq,    "float",    A_FLOAT, 0);
+    class_addmethod(c, (method)dsaws_changedetune,    "float",    A_FLOAT, 0);
     class_addmethod(c, (method)dsawsz_float,    "float",    A_FLOAT, 0);
     
     class_dspinit(c);
@@ -137,7 +140,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
         x->w_connected[1] = 1;
         
         int i;
-        for(i = 0; i < 4; i++){ //1024
+        for(i = 0; i < 50; i++){ //1024
             x->phase[i] = -1;
         } // set the phase to -1 everytime
         
@@ -213,10 +216,12 @@ void dsaws_assist(t_dsaws *x, void *b, long m, long a, char *s) // when we move 
 
 
 // float function handle changing the floats that going in freq inlet into frequency
-void dsawsz_float(t_dsaws* x, double freq){
+void dsaws_changefreq(t_dsaws* x, double freq){
     if(freq > 0){
         
-        dsaws_detune(x, x->freqp, x->detunep); // calculating every voice's si
+        dsaws_detune(x, freq, x->detunep); // calculating every voice's si
+        freq = x->freqp;
+        
     }
     else{
         error("please enter float frequency > 0.\n");
@@ -226,10 +231,12 @@ void dsawsz_float(t_dsaws* x, double freq){
 }
 
 //
-void dsaws_float2(t_dsaws* x, double detune){
+void dsaws_changedetune(t_dsaws* x, double detune){
     if(detune > 0)
     {
-        dsaws_detune(x, x->freqp, x->detunep);
+        dsaws_detune(x, x->freqp, detune);
+        detune = x->detunep;
+    
     }
     else
     {
@@ -237,7 +244,21 @@ void dsaws_float2(t_dsaws* x, double detune){
     }
     
 }
+ 
 
+void dsawsz_float(t_dsaws* x, double freq, double detune) // ???new way to take float num into object, revise the prototype and the ext_main
+{
+    long inlet_number = proxy_getinlet((t_object *)x);
+
+    if (inlet_number == 1){
+        dsaws_changefreq(x, freq);
+    }
+    else if (inlet_number == 2){
+        dsaws_changedetune(x, detune);
+    }
+    else
+        object_error((t_object *)x, "please enter valid float num to freq and detune num.");
+}
 
 
 
@@ -298,7 +319,8 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
             
             if(inputL > 0)
             {
-                dsawsz_float(x, inputL); // it calls dsaws_detune func that calculating every voice's si
+                dsawsz_float(x, inputL, x->detunep); // it calls dsaws_detune func that calculating every voice's si
+          
             }
             else
             {
@@ -309,7 +331,9 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
         if (x->w_connected[1]){
             if(inputM > 0)
             {
-                dsaws_float2(x, inputM);
+                
+                dsawsz_float(x, x->freqp, inputM);// taking input M as the detune parameter
+          
             }
             else
             {
@@ -324,15 +348,15 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
        
         //ADD UP ALL THE SAW WAVES//
         float sum = 0; // initiallized the sum in phase[index]'s data type
-        for (int index=0; index < 4; index++) //之後要改回1024 index: how many voices
+        for (int index=0; index < 50; index++) //之後要改回1024 index: how many voices
         {
             
                 process_saw(x, index);
                 sum = sum + x->phase[index]; // adding all the saw waves
                 
         }
-            *outL++= sum / 4; // amplitude divided by the array phase[1024] /改回1024
-            *outR++= sum / 4;
+            *outL++= sum / 50; // amplitude divided by the array phase[1024] /改回1024
+            *outR++= sum / 50;
         }
     }
 
