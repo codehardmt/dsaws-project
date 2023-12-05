@@ -74,14 +74,15 @@ void process_saw(t_dsaws* x, int index){ // arguement is a pointer to struct, we
     }
 }
 
+
 void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling increment for add-up saw waves, base freq & add or minus number (0, 1, -1, 2, -2...)
-    
-    
+  
     base = octcps(base); // taking base frequency converted to e.g. 8.00
     double base_detune = detune; // set the base_detune for increment later
     
     //calculating each freq of spacing-out detune when the saw becomes more, and further calculating the different sampling increment
     for(int i = 0; i < x->voicenump; i++){ //keep calling this func that it should not calculate 1024 everytime, just calculate what users' entering
+
         
         if(i == 0){ // first initial value
             x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base));
@@ -97,7 +98,9 @@ void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling
             x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base + detune));
             
         }
+
         detune = detune + base_detune; // instead of adding the base num, add the base_detune num to make it equally wider. base_detune will not change, it's the original value that user set, but the detune will add up every time.
+
     }
     
 }
@@ -110,6 +113,7 @@ void ext_main(void *r)
     // your custom free function.
 
     t_class *c = class_new("dsaws~", (method)dsaws_new, (method)dsp_free, (long)sizeof(t_dsaws), 0L, A_GIMME, 0);
+
 
     class_addmethod(c, (method)dsaws_dsp64,     "dsp64",    A_CANT, 0); //set up signal chains in max
     class_addmethod(c, (method)dsaws_assist,    "assist",    A_CANT, 0);
@@ -126,18 +130,24 @@ void ext_main(void *r)
 
 
 
+
 void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // parameter -> takes argument // argv is an array of arguments
+
+
 {
     t_dsaws *x = (t_dsaws *)object_alloc(dsaws_class);
     
     if (x) {
+
         dsp_setup((t_pxobject *)x, 3);    // MSP inlets: arg is # of inlets and is REQUIRED!
         // use 0 if you don't need inlets
         //intin(x, 2); // for the non-signal inlet, the num is for 3rd inlet (0:1st, 1:2nd, 2: 3rd. index of the inlets
+
         
         outlet_new(x, "signal");
         outlet_new(x, "signal"); // signal outlet (note "signal" rather than NULL)
         
+
         //initializtion to not connect!
         x->w_connected[0] = 0;
         x->w_connected[1] = 0;
@@ -159,6 +169,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
             {
                 // x->si[i] = 2.0 / calculateWL(sys_getsr(), frequency); // -1 to 1 divide samplerate and frequecy = sample increment
                 dsaws_detune(x, x->freqp, x->detunep);
+
             }
             else
             {
@@ -169,6 +180,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
         else
         {
             float defaultFreq = 440.0;
+
            // x->si[i] = 2.0 / calculateWL(sys_getsr(), defaultFreq);
             dsaws_detune(x, defaultFreq, x->detunep);
         
@@ -209,6 +221,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
 
         
         return (x);
+
 }
 
 
@@ -229,6 +242,7 @@ void dsaws_assist(t_dsaws *x, void *b, long m, long a, char *s) // when we move 
         sprintf(s, "I am outlet %ld", a);
     }
 }
+
 
 
 
@@ -293,23 +307,6 @@ void dsaws_int(t_dsaws* x, long n){ //allowing the users sending both integeter 
 }
 
 
-/*void dsaws_int(t_dsaws* x, long n){ // for the non-signal inlet // abandoned
-    long inlet_number = proxy_getinlet((t_object *)x);
-        post("the inlet number is %d.\n", inlet_number);
-    if(inlet_number == 2){ // index num of inlet (3rd inlet)
-        x->voicenump = n; //address for storing users' num
-        
-    }
-    else{
-        error("please enter float frequency.\n");
-    }
-}
- */
-
-
-
-
-
 
 // registers a function for the signal chain in Max
 void dsaws_dsp64(t_dsaws *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
@@ -348,18 +345,16 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
     t_double *outL = outs[0];    // we get audio for each outlet of the object from the **outs argument
     t_double *outR = outs[1];
     
-    
-    
-    
     long n = sampleframes;
     
     t_double inputL = *inL; // freq
     t_double inputM = *inM; // num of voices
     t_double inputR = *inR; // detune parameter
+
     
     
     for (int time=0; time < sampleframes; time++){ // how many samples user/maxmsp are going to take at a time
-        
+
         // CALL THE FUNCTION CALCULATES EACH VOICE'S SI//
         if (x->w_connected[0]){ // if the 1st inlet is connected by a signal
             if(inputL > 0)
@@ -417,6 +412,7 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
             *outR++= sum / x->voicenump;
         }
     }
+
 
 
 
