@@ -21,9 +21,9 @@ typedef struct _dsaws {
     float si[1024]; //storing every si in each voice
     float phase[1024]; // storing every phase in each voice
     short w_connected[3]; //([]means how many inlets)
-    float detunep; // storing users' detune parameter
     float freqp; //storing users' detune parameter
     float voicenump; //storing users' voices parameter
+    float detunep; // storing users' detune parameter
 } t_dsaws;
 
 
@@ -74,14 +74,14 @@ void process_saw(t_dsaws* x, int index){ // arguement is a pointer to struct, we
     }
 }
 
-void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling increment for add-up saw waves
+void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling increment for add-up saw waves, base freq & add or minus number (0, 1, -1, 2, -2...)
     
     
     base = octcps(base); // taking base frequency converted to e.g. 8.00
     double base_detune = detune; // set the base_detune for increment later
     
     //calculating each freq of spacing-out detune when the saw becomes more, and further calculating the different sampling increment
-    for(int i = 0; i < x->voicenump; i++){ //keep calling this func that it should not calculate 1024 everytime
+    for(int i = 0; i < x->voicenump; i++){ //keep calling this func that it should not calculate 1024 everytime, just calculate what users' entering
         
         if(i == 0){ // first initial value
             x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base));
@@ -97,7 +97,7 @@ void dsaws_detune(t_dsaws* x, double base, double detune){ // calculate sampling
             x->si[i] = 2.0 / calculateWL(sys_getsr(), cpsoct(base + detune));
             
         }
-        detune = detune + base_detune; // instead of adding the base num, add the base_detune num to make it equally wider.
+        detune = detune + base_detune; // instead of adding the base num, add the base_detune num to make it equally wider. base_detune will not change, it's the original value that user set, but the detune will add up every time.
     }
     
 }
@@ -116,7 +116,8 @@ void ext_main(void *r)
     class_addmethod(c, (method)dsaws_changefreq,    "float",    A_FLOAT, 0);
     class_addmethod(c, (method)dsaws_changedetune,    "float",    A_FLOAT, 0);
     class_addmethod(c, (method)dsawsz_float,    "float",    A_FLOAT, 0);
-    class_addmethod(c, (method)dsaws_int, "int", A_LONG, 0); // for the non-signal inlet - connection between users's messages to the written function (binding)
+    class_addmethod(c, (method)dsaws_int, "int", A_LONG, 0);
+    // for the non-signal inlet - connection between users's messages to the written function (binding)
     
     class_dspinit(c);
     class_register(CLASS_BOX, c);
@@ -147,9 +148,11 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
             x->phase[i] = -1;
         }
         
-        x->freqp = 440.0;
-        x->detunep = 0.0;
-        if(argc >= 1){// argument take in object as freq
+        
+        //SET UP THE ARGUMENT OF THE OBJECT
+            x->freqp = 440.0;
+            x->detunep = 0.0;
+        if(argc >= 1){// 1st argument in object: freq
             
             x->freqp = atom_getfloat(argv);//All atom_getfloat does is turn the pointer that gets passed to it into a float)
             if(x->freqp > 0)
@@ -172,10 +175,22 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
         }
     }
         
+       
+        
+        if(argc >= 2){ // 2nd argument in object: num of voices
+            
+            x->voicenump = atom_getfloat(argv+1); // (argv+1) pointer to the 2nd argument of the array
+            
+        }
+        else{
+            x->voicenump = 1; //if user didn't type anything, default will be 1(to make sound, one saw wave)
+            }
+    
+    
         x->detunep = 0.0;
-         // (argv+1) pointer to the 2nd argument of the array
-        if(argc >= 2){ // argument take in object as detune
-            x->detunep = atom_getfloat(argv+1);
+         
+        if(argc >= 3){ // 3rd argument in object: detune (in oct.pc)
+            x->detunep = atom_getfloat(argv+2);
             
             if(x->detunep > 0){
                 dsaws_detune(x, x->freqp, x->detunep);
@@ -191,14 +206,7 @@ void *dsaws_new(t_symbol *s, long argc, t_atom *argv) // creating object // para
             float defaultdetunep = 0.0;
             dsaws_detune(x, x->freqp, defaultdetunep);
         }
-    
-        
-        if(argc >= 3){ // if the third argument is entered
-            x->voicenump = atom_getfloat(argv+2); // the users-entered 3rd argument will be voice num
-        }
-        else{
-            x->voicenump = 1; //if user didn't type anything, default will be 1(to make sound, one saw wave)
-            }
+
         
         return (x);
 }
@@ -227,12 +235,13 @@ void dsaws_assist(t_dsaws *x, void *b, long m, long a, char *s) // when we move 
 
 
 
-// float function handle changing the floats that going in freq inlet into frequency
+// function that handle changing the floats that going in freq inlet into frequency
 void dsaws_changefreq(t_dsaws* x, double freq){
     if(freq > 0){
         
         dsaws_detune(x, freq, x->detunep); // calculating every voice's si
-        x->freqp = freq; // x->val = arg; arg is replacing the value in x->val. (i used to write backward...) read from right to left
+        x->freqp = freq;
+        // x->val = arg; arg is replacing the value in x->val. (i used to write backward...) read from right to left
         
     }
     else{
@@ -242,7 +251,7 @@ void dsaws_changefreq(t_dsaws* x, double freq){
     
 }
 
-//
+// function that handle changing the floats that going in detune inlet into detune parameter
 void dsaws_changedetune(t_dsaws* x, double detune){
     if(detune > 0)
     {
@@ -258,22 +267,24 @@ void dsaws_changedetune(t_dsaws* x, double detune){
 }
  
 
-void dsawsz_float(t_dsaws* x, double input) // ???new way to take float num into object, revise the prototype and the ext_main
+void dsawsz_float(t_dsaws* x, double input) // making the message that users send into different inlet works. (only message)
 {
     long inlet_number = proxy_getinlet((t_object *)x);
     post("this is inlet %d.\n", inlet_number);
-    if (inlet_number == 0){
+    if (inlet_number == 0){ //first inlet
         dsaws_changefreq(x, input);
     
     }
-    else if (inlet_number == 1){
-        dsaws_changedetune(x, input);
-    }
-    else if (inlet_number == 2){
+    else if (inlet_number == 1){ //second inlet
+        
         x->voicenump = round(input); //round() 四捨五入 .0 （rounding）
     }
+    else if (inlet_number == 2){ //third inlet
+        
+        dsaws_changedetune(x, input);
+    }
     else
-        object_error((t_object *)x, "please enter valid float num to freq and detune num.");
+        object_error((t_object *)x, "please enter valid num to freq, voices, and detune num.");
 }
 
 
@@ -343,15 +354,14 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
     long n = sampleframes;
     
     t_double inputL = *inL; // freq
-    t_double inputM = *inM; // detune parameter
-    t_double inputR = *inR; // num of voices
+    t_double inputM = *inM; // num of voices
+    t_double inputR = *inR; // detune parameter
     
     
     for (int time=0; time < sampleframes; time++){ // how many samples user/maxmsp are going to take at a time
         
         // CALL THE FUNCTION CALCULATES EACH VOICE'S SI//
         if (x->w_connected[0]){ // if the 1st inlet is connected by a signal
-            
             if(inputL > 0)
             {
                 dsaws_changefreq(x, inputL); // it calls dsaws_detune func that calculating every voice's si
@@ -362,30 +372,30 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
                 error("please enter frequency > 0.\n");
             }
         }
-        //SET THE DETUNE INLET IF CONNECTED//
+        //SET THE VOICE OF NUM INLET IF CONNECTED//
         if (x->w_connected[1]){
             if(inputM > 0)
             {
                 
-                dsaws_changedetune(x, inputM);// taking input M as the detune parameter
+                x->voicenump = round(inputM);
           
             }
             else
             {
-                error("please enter number > 0.\n");
+                error("please enter a valid number > 0.\n");
             }
         
         }
-        //SET THE VOICE OF NUM INLET IF CONNECTED//
+        //SET THE DETUNE INLET IF CONNECTED//
         if (x->w_connected[2]){
             if(inputR > 0){
                 
-                x->voicenump = round(inputR);
+                dsaws_changedetune(x, inputR);// taking input M as the detune parameter
                 
             }
             else
             {
-                error("please enter a valid number > 0.\n");
+                error("please enter a valid number > 0, using oct.pc to think.\n");
             }
         }
         
@@ -400,7 +410,7 @@ void dsaws_perform64(t_dsaws* x, t_object *dsp64, double **ins, long numins, dou
         {
             
                 process_saw(x, index);
-                sum = sum + x->phase[index]; // adding all the saw waves
+                sum = sum + x->phase[index]; // adding all the saw waves -- when the for loop loops multiple times(depends on the voice num), it add up every saw wave
                 
         }
             *outL++= sum / x->voicenump; // amplitude divided by the num of the voice to reduce amp.
